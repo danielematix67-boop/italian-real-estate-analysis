@@ -1,0 +1,171 @@
+name: Update notebook documentation
+
+on:
+  push:
+    branches:
+      - docs/notebook-01-01-markdown
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update Markdown cells only
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('notebooks/01.01_omi_quotations_dataset_creation.ipynb')
+          notebook = json.loads(path.read_text(encoding='utf-8'))
+
+          replacements = {
+              'a6cd0a17': """# OMI Residential Quotations — Dataset Construction & Quality Assurance
+
+This notebook transforms the semiannual **OMI (Osservatorio del Mercato Immobiliare)** quotation releases published by the *Agenzia delle Entrate* into a consolidated, validated analytical dataset.
+
+## Analytical scope
+
+The workflow covers four stages: **raw-data consolidation, structural and quality validation, analytical feature construction, and Parquet export**. The resulting dataset is designed for reproducible analysis of residential quotations across time and geographic levels, and for subsequent integration with transaction-volume data.
+
+> **Interpretation note:** OMI quotations represent reference ranges for defined market areas and property categories. Derived indicators such as `Compr_mid` are analytical measures calculated in this notebook and must not be interpreted as official OMI average transaction prices.
+""",
+              '940f1736': """## 1. Environment & project configuration
+
+The notebook initializes the analytical environment and resolves the project root before accessing raw data. The configuration is intentionally minimal: `pandas` handles tabular data preparation, `numpy` supports numerical transformations, and `matplotlib` is available for exploratory visualization.
+
+The raw quotation files are expected under `data/raw/quotations/`. A missing input directory stops execution immediately rather than producing an incomplete dataset.
+""",
+              'd1a3c37e': """## 2. Raw OMI releases — loading & consolidation
+
+The OMI quotation archive is organized as one semicolon-separated CSV release per semester. Each file is loaded independently, validated against the expected filename convention (`omi_quotations_YYYY_S1` / `omi_quotations_YYYY_S2`), and enriched with explicit temporal identifiers.
+
+The individual releases are then concatenated into a single raw table. At this stage, the notebook preserves the source structure and does not apply analytical transformations.
+""",
+              'f1': """## 3. Raw dataset inspection
+
+Before cleaning, the consolidated dataset is inspected to establish its **schema, dimensionality, temporal coverage, data types, and row-level duplication status**.
+
+This step provides a baseline representation of the raw input and makes subsequent cleaning decisions traceable. In particular, the reference period is checked across all available semester releases.
+""",
+              'f3': """## 4. Data quality assessment
+
+The first quality-control layer quantifies missingness across all variables and identifies technical artefacts introduced by the source files.
+
+The analysis distinguishes between **structural missingness** and potentially meaningful missing observations. A missing quotation is not converted to zero, and no value is imputed at this stage.
+""",
+              'f6': """### 4.1 Quotation variables — numeric standardisation
+
+The quotation fields are explicitly converted to numeric types. Values that cannot be parsed are coerced to missing (`NaN`), making parsing problems observable and preventing silent type inconsistencies in downstream calculations.
+
+The conversion covers both purchase and rental quotation ranges: `Compr_min`, `Compr_max`, `Loc_min`, and `Loc_max`.
+""",
+              'f8': """## 5. Structural validation & analytical-key diagnostics
+
+This stage verifies structural constraints that should hold for valid OMI quotation records:
+
+- minimum purchase quotations do not exceed maximum quotations;
+- minimum rental quotations do not exceed maximum quotations;
+- quotation values are non-negative;
+- the reference semester is either `S1` or `S2`.
+
+A candidate analytical key is also evaluated to identify repeated combinations of reference period, geography, OMI zone, property type, and condition. Repeated candidate keys are reported rather than automatically removed, because repeated records may reflect the structure of the source data rather than duplicate observations.
+""",
+              'f11': """## 6. Cleaning & standardisation
+
+Cleaning is deliberately conservative and preserves the information content of the source data.
+
+The transformation rules are limited to:
+
+1. trimming leading and trailing whitespace from text fields;
+2. converting empty strings to missing values;
+3. retaining valid zero values;
+4. creating a standard `reference_date` from the semester identifier;
+5. sorting the resulting dataset by time and geographic dimensions.
+
+No quotation value is imputed or otherwise modified because of missingness.
+""",
+              'f13': """## 7. Derived quotation metrics
+
+The raw OMI purchase and rental ranges are transformed into descriptive analytical measures. For each quotation range, the notebook derives a **midpoint**, an **absolute spread**, and a **relative spread**.
+
+For purchase quotations, `Compr_mid` is the arithmetic midpoint of `Compr_min` and `Compr_max`; `Compr_spread` measures the width of the quotation interval; and `Compr_spread_pct` expresses that width relative to the midpoint.
+
+These are **derived analytical indicators**, not official OMI statistics or observed transaction prices.
+""",
+              'f15': """## 8. Temporal coverage validation
+
+The dataset is expected to contain a continuous sequence of two semester observations per year over the available reference range.
+
+The notebook compares observed periods with the theoretically expected `S1`/`S2` sequence and explicitly reports any missing semesters. This check is performed before using the dataset for time-series analysis, so an incomplete download cannot remain hidden in later results.
+""",
+              'f17': """## 9. Geographic coverage & hierarchy
+
+OMI quotations are organized across multiple geographic levels. The dataset supports analysis along the hierarchy:
+
+**Area territoriale → Regione → Provincia → Comune → Zona OMI**
+
+The notebook first reports overall geographic coverage and then summarizes municipalities, OMI zones, and observations by region. These counts describe dataset coverage and should not be interpreted as measures of market size.
+""",
+              'f19': """## 10. Property categories & condition coverage
+
+OMI quotations are segmented by **property type (`Descr_Tipologia`)** and, where available, **condition (`Stato`)**.
+
+Observation counts are reported to document how the dataset is distributed across categories. Differences in quotation statistics should therefore be interpreted together with their underlying coverage, particularly for categories with relatively few observations.
+""",
+              '6da7e04e': """## 11. Final quality-control summary
+
+The final control table consolidates the principal validation outcomes into an auditable hand-off point for downstream notebooks.
+
+The summary records dataset size, temporal coverage, duplicate rows, and the main structural quotation checks. A clean result means that the dataset satisfies the validations implemented here; it does not imply that the source data are free from all forms of statistical or methodological limitation.
+""",
+              '7563372a': """## 12. Analytical dataset export
+
+The validated dataset is exported in **Parquet** format to `data/processed/omi_quotations.parquet`.
+
+Parquet is used as the processed analytical format because it preserves column types and supports efficient storage and loading compared with a plain CSV representation. The exported table contains the original OMI fields together with the temporal and derived quotation variables created in this notebook.
+""",
+          }
+
+          original_non_markdown = [
+              (cell['id'], cell['cell_type'], cell.get('source', []), cell.get('outputs', []), cell.get('execution_count'))
+              for cell in notebook['cells'] if cell['cell_type'] != 'markdown'
+          ]
+
+          seen = set()
+          for cell in notebook['cells']:
+              if cell['cell_type'] != 'markdown':
+                  continue
+              cell_id = cell['id']
+              if cell_id in replacements:
+                  cell['source'] = replacements[cell_id].splitlines(keepends=True)
+                  seen.add(cell_id)
+
+          if seen != set(replacements):
+              missing = set(replacements) - seen
+              raise RuntimeError(f'Markdown cell IDs not found: {sorted(missing)}')
+
+          updated_non_markdown = [
+              (cell['id'], cell['cell_type'], cell.get('source', []), cell.get('outputs', []), cell.get('execution_count'))
+              for cell in notebook['cells'] if cell['cell_type'] != 'markdown'
+          ]
+          if updated_non_markdown != original_non_markdown:
+              raise RuntimeError('Non-Markdown cells changed unexpectedly.')
+
+          path.write_text(json.dumps(notebook, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+          PY
+
+      - name: Commit notebook and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm .github/workflows/_update_notebook_docs.yml
+          git add notebooks/01.01_omi_quotations_dataset_creation.ipynb .github/workflows/_update_notebook_docs.yml
+          git diff --cached --check
+          git commit -m 'docs: improve notebook 01.01 markdown documentation'
+          git push
