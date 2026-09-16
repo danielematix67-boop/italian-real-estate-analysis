@@ -169,3 +169,4 @@ Parquet is used as the processed analytical format because it preserves column t
           git diff --cached --check
           git commit -m 'docs: improve notebook 01.01 markdown documentation'
           git push
+
