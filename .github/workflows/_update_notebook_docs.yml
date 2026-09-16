@@ -1,12 +1,13 @@
 name: Update notebook documentation
 
 on:
-  push:
+  pull_request:
     branches:
-      - docs/notebook-01-01-markdown
+      - main
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   update:
@@ -159,6 +160,11 @@ Parquet is used as the processed analytical format because it preserves column t
 
           path.write_text(json.dumps(notebook, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
           PY
+
+      - name: Verify only Markdown cells changed
+        run: |
+          git diff --check
+          git diff -- notebooks/01.01_omi_quotations_dataset_creation.ipynb
 
       - name: Commit notebook and remove temporary workflow
         run: |
