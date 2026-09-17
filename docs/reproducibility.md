@@ -22,7 +22,7 @@ Activate on Windows PowerShell:
 .venv\Scripts\Activate.ps1
 ```
 
-Install the pinned project dependency list:
+Install the project dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -45,17 +45,17 @@ data/raw/population/
 data/processed/
 ```
 
-The quotation dataset-creation notebook explicitly checks for `data/raw/quotations`. The transaction and population notebooks perform equivalent project-root and input-directory checks for their respective domains.
+The quotation dataset-creation notebook checks for its quotation input directory. The transaction and population notebooks perform equivalent project-root and input-directory checks for their respective domains.
 
-## 3. Reproducing the quotation dataset
+## 3. Reproducing the quotation workflow
 
-Run:
+First run:
 
 ```text
 notebooks/01_01_omi_quotations_dataset_creation.ipynb
 ```
 
-The notebook discovers quotation releases, validates the expected filename convention and creates the analysis-ready dataset. It is the required upstream step for the quotation exploration notebook when the processed dataset has not already been generated.
+This notebook discovers semiannual releases, validates their filenames and schemas, performs data-quality checks and writes the processed quotation dataset to `data/processed/`.
 
 Then run:
 
@@ -63,7 +63,9 @@ Then run:
 notebooks/01_02_omi_quotations_exploration.ipynb
 ```
 
-## 4. Reproducing transactions analysis
+This notebook consumes the processed dataset and performs the national, regional, municipality and Municipality–Zone analysis.
+
+## 4. Reproducing the transaction workflow
 
 Run:
 
@@ -71,9 +73,11 @@ Run:
 notebooks/02_omi_transactions_exploration.ipynb
 ```
 
-The notebook discovers annual OMI transaction releases from filenames, validates the expected table set and constructs the municipality-year analytical panel.
+The notebook discovers annual OMI transaction releases for 2011–2025, validates the expected table set, harmonises historical schemas and constructs a municipality-year panel.
 
-## 5. Reproducing population analysis
+The workflow explicitly validates the `year` + `codcom` municipality key, join cardinality and unmatched municipality-year records. Residential NTN size classes are reconciled against the total where applicable.
+
+## 5. Reproducing the population workflow
 
 Run:
 
@@ -81,18 +85,20 @@ Run:
 notebooks/03_population_exploration.ipynb
 ```
 
-The notebook inventories the annual POSAS releases, validates the expected municipality/province/region files and constructs the municipality-year population panel.
+The notebook inventories the annual POSAS releases for 2019–2026, validates the expected source structure and constructs the municipality-year population panel using the official `Età = 999` total row for municipality totals.
 
 ## 6. Reproducibility controls
 
 The notebooks use several controls to reduce environment-specific behaviour:
 
-- project roots are detected relative to the notebook execution location;
+- project roots are resolved from the repository structure;
 - input directories are checked explicitly;
 - release files are discovered using documented filename conventions;
 - duplicate or unexpected release combinations are surfaced;
-- joins are preceded by key validation in the transaction workflow;
-- quotation transformations are designed to avoid silent data loss;
+- schemas are harmonised before historical panel construction where required;
+- joins are preceded by explicit key/cardinality validation;
+- unmatched records are reported rather than silently dropped;
+- quotation transformations avoid silent imputation;
 - generated processed artefacts are kept separate from raw releases.
 
 ## 7. Updating the data
@@ -100,15 +106,15 @@ The notebooks use several controls to reduce environment-specific behaviour:
 When a new official release is added, the preferred workflow is:
 
 1. place the raw release in the appropriate `data/raw/<domain>/` directory;
-2. preserve the provider's original file structure and naming convention where possible;
-3. rerun the relevant ingestion/validation notebook;
-4. inspect coverage and quality checks;
-5. regenerate the processed analytical artefact;
+2. preserve the provider's original naming and file structure where possible;
+3. rerun the relevant ingestion or validation notebook;
+4. inspect schema, coverage and quality checks;
+5. regenerate the processed analytical artefact where applicable;
 6. rerun the corresponding exploration notebook;
-7. review the resulting tables and visualisations before committing notebook changes.
+7. review tables and visualisations before committing changes.
 
-## 8. Version-control considerations
+## 8. Version control
 
-The repository `.gitignore` excludes local virtual environments, notebook checkpoints, temporary files, build artefacts and local configuration such as Streamlit secrets. Generated output directories are also excluded from version control.
+The repository `.gitignore` excludes local virtual environments, notebook checkpoints, temporary files, build artefacts and local configuration.
 
-The source notebooks and documentation remain the reproducible record of the analytical workflow; generated outputs should not be treated as the source of truth.
+The notebooks and documentation are the reproducible record of the analytical workflow. Generated outputs should not be treated as the source of truth.
