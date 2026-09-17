@@ -1,29 +1,29 @@
 # Italian Real Estate Analysis
 
-Quantitative analysis of the Italian residential real estate market using official OMI (Osservatorio del Mercato Immobiliare) data, complemented by transaction-volume and population datasets.
+Quantitative analysis of the Italian residential real estate market using official **OMI (Osservatorio del Mercato Immobiliare)** data, complemented by **OMI transaction volumes (NTN)** and **ISTAT POSAS population data**.
 
-The project is designed as a reproducible data-analysis workflow: raw releases are inventoried and validated, transformed into analysis-ready panels, and explored through focused Jupyter notebooks.
+The repository is structured as a reproducible, notebook-driven analytical workflow: raw releases are inventoried and validated, transformed into analysis-ready datasets or panels, and then explored through focused notebooks.
 
 ## Project scope
 
-The repository currently covers three analytical streams:
+The project currently covers three analytical streams:
 
-- **OMI quotations** — semiannual residential property quotations, with temporal, geographic and property-level analysis from the historical OMI releases available in the repository.
-- **OMI transactions** — normalized transaction volumes (NTN) at municipality level, with annual releases covering 2011–2025 and a harmonized municipality-year panel.
-- **Population** — municipality-year population data based on ISTAT POSAS releases, currently covering 2019–2026.
+- **OMI quotations** — semiannual residential quotation data with national, regional, municipal and OMI-zone analysis.
+- **OMI transactions** — annual normalized transaction volumes (NTN), harmonised into a municipality-year panel for 2011–2025.
+- **Population** — annual municipality-level population data from ISTAT POSAS, currently covering 2019–2026.
 
-The analytical hierarchy is designed to move from national and regional patterns to province, municipality and OMI-zone comparisons where the underlying data support that level of detail.
+The analytical hierarchy moves from broad market patterns to increasingly granular geographic comparisons where the source data support that level of detail.
 
 ## Main analytical questions
 
-The project is intended to answer questions such as:
+The project is designed to investigate questions such as:
 
 - How have residential OMI quotations evolved over time?
-- How do price levels and growth differ across regions, municipalities and OMI zones?
-- Which Municipality–Zone combinations experienced the largest long-run changes?
-- How persistent and volatile has price growth been?
+- How do quotation levels and growth differ across regions and municipalities?
+- Which Municipality–Zone combinations show the largest long-run changes?
+- How persistent and volatile is quotation growth?
 - How large are historical drawdowns from local quotation peaks?
-- How dispersed are residential quotation levels across Italian OMI zones?
+- How dispersed are quotation levels across Italian OMI zones?
 - How do transaction volumes evolve across municipalities?
 - How can quotation, transaction and demographic datasets be prepared for future integrated analysis?
 
@@ -42,6 +42,12 @@ italian-real-estate-analysis/
 │   ├── 01_02_omi_quotations_exploration.ipynb
 │   ├── 02_omi_transactions_exploration.ipynb
 │   └── 03_population_exploration.ipynb
+├── docs/
+│   ├── README.md
+│   ├── data-sources.md
+│   ├── methodology.md
+│   ├── notebooks.md
+│   └── reproducibility.md
 ├── requirements.txt
 ├── LICENSE
 ├── .gitignore
@@ -57,7 +63,7 @@ Official data releases
         │       ↓
         │   ingestion & validation
         │       ↓
-        │   analysis-ready quotation dataset
+        │   analysis-ready Parquet dataset
         │       ↓
         │   temporal / geographic / zone analysis
         │
@@ -65,62 +71,67 @@ Official data releases
         │       ↓
         │   release discovery & schema harmonisation
         │       ↓
-        │   municipality-year transaction panel
+        │   municipality-year panel
         │       ↓
-        │   NTN and price-volume analysis
+        │   NTN analysis
         │
         └── ISTAT POSAS population
                 ↓
-            inventory & validation
+            source inventory & validation
                 ↓
-            municipality-year population panel
+            municipality-year panel
                 ↓
             demographic analysis
 ```
 
-## OMI quotations pipeline
+## OMI quotations
 
-The quotation workflow is intentionally split into two notebooks.
+The quotation workflow is intentionally split into **dataset creation** and **exploration**.
 
 ### `01_01_omi_quotations_dataset_creation.ipynb`
 
-Creates the analytical quotation dataset from the semiannual OMI releases. The notebook:
+Builds the processed quotation dataset from semiannual OMI releases. The workflow:
 
-1. discovers files using the expected `omi_quotations_YYYY_S1.csv` / `S2` convention;
-2. records year and semester metadata;
-3. inspects the raw schema and temporal coverage;
-4. performs data-quality and structural validation;
+1. discovers releases using the expected `omi_quotations_YYYY_S1.csv` / `S2` convention;
+2. derives explicit year, semester and reference-period metadata;
+3. inspects raw schemas and temporal coverage;
+4. performs structural and data-quality checks;
 5. applies conservative cleaning and standardisation;
-6. engineers analytical fields, including quotation midpoints where appropriate;
+6. engineers analytical fields, including quotation midpoints;
 7. checks geographic and property-category coverage;
-8. exports the processed dataset to Parquet.
+8. exports the analytical dataset to Parquet.
 
-The current notebook documents 44 quotation files and 7,516,495 consolidated rows in its recorded run.
+The current documented run covers **44 quotation releases and 7,516,495 rows** before subsequent quality and transformation steps.
 
 ### `01_02_omi_quotations_exploration.ipynb`
 
-Uses the processed quotation dataset for exploratory and comparative analysis. The current analysis includes national, regional, municipal and Municipality–Zone views, including:
+Uses the processed quotation dataset for exploratory and comparative analysis at several geographic levels:
 
-- median and mean purchase quotations;
-- observation counts;
-- historical quotation trends;
-- top and bottom Municipality–Zone comparisons;
-- semester-over-semester growth;
-- year-over-year growth;
-- overall price variation;
-- CAGR and growth persistence;
-- growth volatility;
-- historical drawdown analysis;
-- price-distribution and dispersion analysis;
-- intra-municipality differences between OMI zones.
+- national;
+- regional;
+- municipality;
+- Municipality–Zone.
+
+The analysis includes quotation levels, observation counts, historical trends, Top/Bottom Municipality–Zone comparisons, semester-over-semester and year-over-year growth, long-run change, CAGR, growth persistence, volatility, maximum growth/decline and historical drawdown.
+
+The Municipality–Zone analysis aggregates observations by reference period and calculates `median_compr_mid`, `mean_compr_mid` and `observations`. The median is used as the primary descriptive statistic for cross-sectional comparison.
 
 ## OMI transactions
 
-`02_omi_transactions_exploration.ipynb` analyses normalized transaction volumes (NTN) using annual OMI releases from 2011 to 2025.
+`02_omi_transactions_exploration.ipynb` analyses annual OMI normalized transaction volumes (**NTN — Numero di Transazioni Normalizzate**) for 2011–2025.
 
-The notebook is release-agnostic: it discovers files from their filenames, validates the expected OMI tables, harmonises year-specific schemas and constructs a municipality-year analytical panel before downstream analysis.
+The notebook is designed to be robust to release-specific file layouts. It discovers annual releases from filenames, validates the expected OMI table set, harmonises year-specific schemas and uses explicit municipality keys before constructing the municipality-year panel.
 
-Expected annual tables include:
+The workflow includes checks for:
+
+- expected annual releases;
+- schema consistency;
+- municipality-year key uniqueness;
+- join cardinality;
+- unmatched municipality-year records;
+- reconciliation of residential NTN size classes against the total where applicable.
+
+Expected annual OMI tables include:
 
 - `LISTA-COM`
 - `VALORI-RES`
@@ -129,50 +140,46 @@ Expected annual tables include:
 
 ## Population
 
-`03_population_exploration.ipynb` builds a reproducible municipality-year population panel from ISTAT POSAS releases.
+`03_population_exploration.ipynb` builds a reproducible municipality-year population panel from ISTAT POSAS releases covering 2019–2026.
 
-The workflow includes source inventory, validation, municipality totals, demographic indicators, geographic analysis and an analytical hand-off for potential integration with real-estate indicators.
+The workflow inventories annual source files, validates municipality/province/region data, uses the official `Età = 999` total row for the main municipality population measure, and produces demographic and geographic summaries.
 
-The municipality-level panel uses the official `Età = 999` total row rather than aggregating the age-detail records unnecessarily.
+Population remains a separate analytical stream in the current version of the project; cross-dataset integration is intentionally left as a subsequent analytical step.
 
 ## Data sources
 
-Primary data sources are official Italian public-data releases:
+The primary sources are official Italian public-data providers:
 
-- **Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI)** for property quotations and transaction data.
+- **Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI)** for residential quotations and transaction data.
 - **ISTAT — POSAS** for population data.
 
-See [`docs/data-sources.md`](docs/data-sources.md) for source conventions, coverage and dataset-specific notes.
+See [`docs/data-sources.md`](docs/data-sources.md) for source conventions, coverage and field-level notes.
 
 ## Methodology
 
-The project follows a conservative, auditable approach to data preparation:
+The project follows a conservative and auditable approach to data preparation:
 
 - raw data are inspected before transformation;
 - filename conventions are validated rather than assumed;
-- transformations are measured where practical;
-- quotation values are not silently imputed;
 - geographic and temporal keys are checked before panel construction;
-- derived metrics are kept separate from raw-source fields;
-- analytical notebooks document both the methodology and the resulting outputs.
+- joins are validated explicitly;
+- quotation values are not silently imputed;
+- derived indicators are kept distinct from source fields;
+- material transformations are documented;
+- analytical notebooks separate data preparation from interpretation.
 
-See [`docs/methodology.md`](docs/methodology.md) for the detailed analytical conventions.
+See [`docs/methodology.md`](docs/methodology.md) for the detailed analytical conventions and metric definitions.
 
 ## Reproducibility
 
-Create a virtual environment and install the project dependencies:
+Create and activate a virtual environment:
 
 ```bash
 python -m venv .venv
-```
-
-Activate it on Linux/macOS:
-
-```bash
 source .venv/bin/activate
 ```
 
-Or on Windows PowerShell:
+On Windows PowerShell:
 
 ```powershell
 .venv\Scripts\Activate.ps1
@@ -190,49 +197,54 @@ Launch JupyterLab:
 jupyter lab
 ```
 
-Run the notebooks in the documented order when reproducing the quotation workflow:
+For the quotation stream, run the notebooks in this order:
 
-1. `01_01_omi_quotations_dataset_creation.ipynb`
-2. `01_02_omi_quotations_exploration.ipynb`
-3. `02_omi_transactions_exploration.ipynb`
-4. `03_population_exploration.ipynb`
+```text
+01_01_omi_quotations_dataset_creation.ipynb
+        ↓
+01_02_omi_quotations_exploration.ipynb
+```
 
-The notebooks resolve the project root from the expected `data/` directories, reducing dependence on a hard-coded local path.
+The transaction and population notebooks are independent analytical streams and can be executed separately.
+
+The notebooks resolve the project root from the repository structure rather than relying on a hard-coded local path.
 
 ## Dependencies
 
-The current environment is defined in `requirements.txt` and includes:
+The environment is defined in `requirements.txt` and currently includes:
 
 - pandas
 - NumPy
+- SciPy
+- statsmodels
+- scikit-posthocs
 - Matplotlib
 - Seaborn
 - JupyterLab
 - OpenPyXL
 - PyArrow
-- statsmodels
 
 ## Data management
 
-Raw source data are organised under `data/raw/` by analytical domain. Processed analytical artefacts are generated under `data/processed/` when produced by the notebooks.
+Raw source releases are organised under `data/raw/` by analytical domain. Processed analytical artefacts are written under `data/processed/` when generated by the notebooks.
 
-Local environments, notebook checkpoints, build artefacts and other temporary files are excluded through `.gitignore`.
+Local environments, notebook checkpoints, temporary files and local configuration are excluded through `.gitignore`.
 
 ## Limitations and interpretation
 
-OMI quotations are market reference values rather than transaction-level observed sale prices. They should therefore be interpreted as an official quotation indicator and not as a direct estimate of realised transaction prices.
+OMI quotations are official market reference values and should not be interpreted as transaction-level realised sale prices. Quotation statistics also do not automatically control for changes in the composition of the property categories represented in the underlying observations.
 
-Municipality–Zone comparisons also require attention to temporal coverage and data availability. A zone with a shorter or incomplete history should not automatically be interpreted as directly comparable with a zone observed over the full period.
+Municipality–Zone series can have different temporal coverage and observation counts. Comparisons should therefore consider the available history and data coverage rather than treating every series as equally complete.
 
-Transaction volumes and population measures are maintained as separate analytical streams in the current repository. Integration across these datasets is a future analytical step rather than an assumption embedded in the existing notebooks.
+Transaction volumes and population data have different frequencies, definitions and coverage periods from the quotation dataset. Cross-dataset relationships should only be analysed after explicit alignment of geographic keys, frequency and observation windows.
 
 ## Documentation
 
-- [`docs/README.md`](docs/README.md) — documentation index and project guide
-- [`docs/data-sources.md`](docs/data-sources.md) — source datasets and coverage
-- [`docs/methodology.md`](docs/methodology.md) — analytical methodology and metrics
-- [`docs/notebooks.md`](docs/notebooks.md) — notebook-by-notebook documentation
-- [`docs/reproducibility.md`](docs/reproducibility.md) — environment and execution guide
+- [`docs/README.md`](docs/README.md) — documentation index and project architecture
+- [`docs/data-sources.md`](docs/data-sources.md) — official sources, file conventions and coverage
+- [`docs/methodology.md`](docs/methodology.md) — data preparation, aggregation and analytical metrics
+- [`docs/notebooks.md`](docs/notebooks.md) — notebook-by-notebook scope and execution
+- [`docs/reproducibility.md`](docs/reproducibility.md) — environment and reproducibility controls
 
 ## License
 
