@@ -4,26 +4,26 @@
 
 **Provider:** Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI).
 
-The repository stores semiannual quotation releases under:
+Semiannual quotation releases are stored under:
 
 ```text
 data/raw/quotations/
 ```
 
-The quotation ingestion notebook expects the naming convention:
+The ingestion workflow expects the naming convention:
 
 ```text
 omi_quotations_YYYY_S1.csv
 omi_quotations_YYYY_S2.csv
 ```
 
-The files are semicolon-separated CSV releases. The ingestion workflow derives explicit year, semester and reference-period fields from the filename and preserves the source structure before cleaning.
+The releases are semicolon-separated CSV files. Year, semester and reference-period metadata are derived explicitly from the filename and validated before the files enter the analytical dataset.
 
-The current recorded run of `01_01_omi_quotations_dataset_creation.ipynb` loaded 44 valid releases, consolidated 7,516,495 rows and 25 columns before the subsequent quality and transformation steps.
+The documented dataset-creation run covers **44 valid releases**, with **7,516,495 rows and 25 columns** before subsequent quality and transformation steps.
 
 ### Main quotation fields
 
-The source schema includes geographic identifiers and descriptors such as:
+Geographic identifiers and descriptors include:
 
 - `Regione`
 - `Prov`
@@ -35,7 +35,7 @@ The source schema includes geographic identifiers and descriptors such as:
 - `Zona`
 - `LinkZona`
 
-It also includes property classification and quotation fields such as:
+Property classification and quotation fields include:
 
 - `Cod_Tip`
 - `Descr_Tipologia`
@@ -45,21 +45,21 @@ It also includes property classification and quotation fields such as:
 - `Compr_max`
 - rental quotation fields (`Loc_*`)
 
-The analytical notebook derives midpoint and growth measures from these source quotation ranges where appropriate.
+The analytical workflow derives `Compr_mid` where a midpoint representation is appropriate. Growth, dispersion and drawdown measures are then calculated from the analytical quotation series.
 
 ## 2. OMI transactions
 
 **Provider:** Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI).
 
-Raw transaction releases are stored under:
+Annual transaction releases are stored under:
 
 ```text
 data/raw/transactions/
 ```
 
-The transaction notebook currently covers annual releases from **2011 through 2025**.
+The current transaction analysis covers **2011–2025**.
 
-The workflow expects and validates these OMI tables:
+The workflow validates the expected OMI tables:
 
 ```text
 LISTA-COM
@@ -68,9 +68,11 @@ VALORI-COM
 VALORI-PER
 ```
 
-Files are discovered from their names rather than by fragile positional filename parsing. Year-specific schemas are harmonised before constructing a municipality-year analytical panel.
+Annual files are discovered from their filenames rather than through fragile positional parsing. Because historical releases can differ in schema, the notebook harmonises year-specific structures before constructing the analytical panel.
 
-The primary transaction indicator used by the notebook is NTN (Numero di Transazioni Normalizzate).
+The municipality dimension is keyed using `year` + `codcom`. Join cardinality is validated explicitly, and unmatched municipality-year records are reported. Residential NTN size classes are also reconciled against the total where the source structure permits the check.
+
+The principal transaction indicator is **NTN (Numero di Transazioni Normalizzate)**.
 
 ## 3. Population
 
@@ -82,19 +84,20 @@ Raw population data are stored under:
 data/raw/population/
 ```
 
-The current repository contains annual releases from **2019 through 2026**. Each annual release is inventoried across municipality, province and region files.
+The current repository contains annual releases covering **2019–2026**.
 
-The municipality workflow uses the official `Età = 999` total row as the municipality population total. This avoids unnecessarily aggregating the complete age-detail file for the main municipality-year panel.
+The main municipality-year population measure uses the official `Età = 999` total row. This avoids unnecessary aggregation of age-detail records for the municipality total while retaining the detailed source data for further demographic analysis.
 
 ## 4. Source-data handling
 
-The project follows these principles:
+The project follows these rules:
 
-1. Raw releases are kept conceptually separate from processed data.
+1. Raw releases remain separate from processed analytical data.
 2. Filename conventions are validated before metadata are assigned.
 3. Source fields are not overwritten unnecessarily by derived metrics.
-4. Missing, ambiguous or structurally invalid observations are surfaced during validation rather than silently removed.
-5. Dataset-specific coverage is documented explicitly because the three domains do not currently share identical time frequencies or time spans.
+4. Missing, ambiguous or structurally unexpected records are surfaced during validation.
+5. Geographic and temporal keys are checked before panel construction.
+6. Dataset-specific coverage is documented because the three analytical domains do not share identical frequencies or time spans.
 
 ## 5. Processed data
 
@@ -104,11 +107,11 @@ Processed analytical artefacts are written under:
 data/processed/
 ```
 
-For OMI quotations, the main analytical artefact generated by the dataset-creation workflow is a Parquet dataset. Parquet is used as the analytical hand-off format because it is substantially more efficient for repeated columnar reads than repeatedly parsing the raw CSV releases.
+For OMI quotations, the main analytical hand-off is stored in **Parquet**. This provides an efficient columnar format for repeated analytical reads while leaving the original CSV releases as the raw source layer.
 
 ## 6. Official source references
 
 - Agenzia delle Entrate — [Osservatorio del Mercato Immobiliare](https://www.agenziaentrate.gov.it/portale/web/guest/schede/pagamenti/omi)
-- ISTAT — [Population and demographic statistics](https://www.istat.it/)
+- ISTAT — [Istituto Nazionale di Statistica](https://www.istat.it/)
 
-The repository uses the official releases as analytical inputs; the notebooks document the transformations applied after ingestion.
+The repository uses official provider releases as the source layer. All transformations performed after ingestion are documented in the notebooks and methodology documentation.
