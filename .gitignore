@@ -6,12 +6,8 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints/
 
-# Data
-data/processed/
-
 # Outputs
 outputs/
-
 
 # C extensions
 *.so
