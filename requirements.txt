@@ -6,3 +6,5 @@ jupyterlab
 openpyxl
 pyarrow
 statsmodels
+scipy
+scikit-posthocs
