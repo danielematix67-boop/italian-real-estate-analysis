@@ -1,0 +1,8 @@
+field,value
+target_comune,BRESCIA
+province,BS
+region,LOMBARDIA
+reference_year,2025
+peer_group_used,Dimensional (region)
+generated_at,2026-09-18T18:22:38.838791
+notebook,04_omi_comune_peer_benchmark
