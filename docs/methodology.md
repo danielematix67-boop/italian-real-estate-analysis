@@ -1,263 +1,125 @@
 # Methodology
 
-## 1. Analytical philosophy
+## 1. Analytical design
 
-The project separates **data preparation**, **exploratory analysis** and **municipality benchmarking**.
+The repository separates source-data preparation, exploratory analysis and integrated municipality benchmarking. The main data flow is:
 
-The objective is to make transformations explicit and reproducible before using the resulting datasets for comparison.
+```text
+OMI quotations -> 01_01 preparation -> omi_quotations.parquet -> 01_02 exploration
+OMI transactions -> 02 harmonisation -> omi_transactions_panel.parquet
+ISTAT POSAS -> 03 population analysis (independent stream)
 
-Core principles are:
+Processed quotations + transaction panel -> 04 municipality peer benchmark
+```
 
-- inspect source data before transformation;
-- validate structural assumptions before joins or aggregation;
-- use conservative cleaning rules;
-- avoid silent imputation of quotation values;
-- preserve geographic and temporal identifiers;
-- report material transformations and validation outcomes;
-- distinguish source measures from derived indicators;
-- treat benchmark results as descriptive comparisons rather than causal estimates.
+The objective is a transparent and reproducible analytical workflow, not a causal model. Source fields, derived variables and interpretations should remain distinguishable.
 
-## 2. OMI quotation dataset
+## 2. OMI quotation preparation
 
-The quotation ingestion workflow processes semiannual releases and derives:
+Notebook 01_01 loads semiannual, semicolon-separated quotation releases and derives temporal metadata from the filename:
 
-- `reference_year`;
-- `reference_semester`;
-- `reference_period`.
+- reference year;
+- reference semester;
+- reference period.
 
-The source quotation range is represented by `Compr_min` and `Compr_max`. Where a midpoint is required:
+It inspects schema and coverage, measures missingness, converts quotation fields to numeric types, checks zero values and range consistency, identifies candidate-key duplicates, standardises text, and validates temporal and geographic coverage. The cleaning logic is conservative: data-quality issues are surfaced rather than hidden through broad imputation.
+
+### Quotation midpoint and spread
+
+Where the minimum and maximum purchase quotations are available:
 
 ```text
 Compr_mid = (Compr_min + Compr_max) / 2
+spread_eur_m2 = Compr_max - Compr_min
 ```
 
-`Compr_mid` is an analytical proxy for the centre of the quoted range; it is **not an observed transaction price**.
+The midpoint is a derived descriptive proxy for the centre of an official quotation range. It is not an observed transaction-level sale price. The exact set of fields available can differ by source release.
 
-## 3. Municipality–Zone aggregation
+## 3. Quotation exploration
 
-For each reference period and Municipality–Zone pair, the exploration workflow calculates:
+Notebook 01_02 reads the processed quotation dataset and focuses on residential observations. It explores national, regional, provincial and municipal quotation levels, trends and geographic differences, including a Lombardy/Province of Brescia deep dive.
+
+Descriptive summaries use statistics such as median and mean quotation midpoint and observation counts. Growth comparisons depend on the reference periods available in each series. Results can be affected by changes in coverage, property mix and the set of locations observed; they should not be interpreted as quality-adjusted price indices unless an explicit adjustment has been implemented.
+
+For a time series (P_t), common descriptive transformations include:
 
 ```text
-median_compr_mid
-mean_compr_mid
-observations
+period_growth_pct = (P_t / P_(t-1) - 1) * 100
+overall_change_pct = (P_last / P_first - 1) * 100
+CAGR = (P_last / P_first)^(1 / years) - 1
 ```
 
-The median is used as the primary descriptive statistic because it is less sensitive to extreme observations than the mean. The observation count provides a basic coverage indicator.
+Growth volatility can be summarised by the standard deviation of observed period growth rates. Such statistics describe historical behaviour and do not forecast future returns.
 
-## 4. Growth metrics
+## 4. OMI transaction harmonisation
 
-### Semester-over-semester growth
+Notebook 02 discovers annual OMI transaction files and harmonises schema drift across historical releases. It standardises source column names, maps year-specific NTN fields, builds residential and non-residential components, and assembles a municipality-year panel.
 
-```text
-growth_pct = (P_t / P_(t-1) - 1) × 100
-```
+Residential NTN is retained by official property-size band where available. The sum of size-band values is compared with the reported residential total; any reconciliation gap should be inspected. Non-residential measures are aggregated from the relevant source tables without assuming that every year has identical column names.
 
-### Year-over-year growth
+The final panel is checked for non-empty input catalogues, multi-year coverage, unique municipality-year keys, non-negative residential NTN and missing key values. The notebook also reports unmatched records and other data-quality diagnostics before downstream use.
 
-The preferred comparison is the same semester in the previous year:
+### Transaction totals
 
-```text
-YoY = (P_t / P_(t-1 year) - 1) × 100
-```
-
-### Overall variation
-
-```text
-overall_change_pct = (last_price / first_price - 1) × 100
-```
-
-### CAGR
-
-```text
-CAGR = (last_price / first_price)^(1 / years) - 1
-```
-
-### Growth volatility
-
-The standard deviation of calculable period-to-period growth rates is used as a descriptive measure of growth variability.
-
-### Growth persistence
-
-Positive and negative growth periods are counted separately. Periods where growth cannot be calculated are excluded from the denominator.
-
-## 5. Drawdown analysis
-
-For each Municipality–Zone series:
-
-```text
-rolling_max = cumulative maximum of median_compr_mid
-drawdown_pct = median_compr_mid / rolling_max - 1
-```
-
-The main descriptive measures are:
-
-- `max_drawdown_pct`;
-- `latest_drawdown_pct`.
-
-## 6. Distribution and spatial-dispersion analysis
-
-Cross-sectional quotation distributions can be summarised with P10, P25, P50, P75 and P90.
-
-For municipality-level zone dispersion:
-
-```text
-spread_eur_m2 = max_zone_price - min_zone_price
-spread_pct = (max_zone_price / min_zone_price - 1) × 100
-```
-
-These measures describe dispersion in OMI quotation ranges rather than realised transaction-price dispersion.
-
-## 7. OMI transaction analysis
-
-The transaction workflow constructs an annual municipality-level panel from OMI releases covering 2011–2025.
-
-The pipeline:
-
-1. inventories annual releases;
-2. validates the expected OMI table set;
-3. harmonises year-specific schemas;
-4. constructs explicit municipality-year keys;
-5. validates join cardinality;
-6. reports unmatched municipality-year records;
-7. reconciles residential NTN size bands where possible;
-8. exposes the resulting municipality-year panel for downstream analysis.
-
-Residential and non-residential NTN are retained separately. Total transaction volume is derived as:
+The benchmark derives total transaction volume as:
 
 ```text
 vol_tot = ntn_res + ntn_non_res
 ```
 
-## 8. Population analysis
+Residential and non-residential NTN are distinct measures and should be reviewed separately as well as in aggregate.
 
-The population workflow constructs a municipality-year panel from ISTAT POSAS releases covering 2019–2026.
+## 5. Statistical analysis of transaction activity
 
-For the principal municipality total, the official `Età = 999` row is used instead of unnecessarily summing age-detail rows.
+Notebook 02 combines descriptive statistics with distributional and cross-sectional analysis. NTN values can be strongly right-skewed because a relatively small number of municipalities account for high transaction volumes. A (log(1 + NTN)) transformation is used where a transformed distribution is more informative.
 
-Population is currently a separate analytical stream. It is not required for the current peer-group construction in Notebook 04.
+The notebook also compares distributions across macro-areas, including non-parametric Kruskal–Wallis testing and Dunn post-hoc comparisons with multiple-testing correction where implemented. These tests evaluate distributional differences within the analysed sample; they do not establish why differences occur or imply causal effects.
 
-## 9. Municipality peer benchmarking
+Other analyses include size-band composition, national growth decomposition, concentration of transactions among municipalities, regional heterogeneity and municipality-level growth dynamics. Interpret results alongside coverage, missingness and the treatment of zero or undefined growth.
 
-Notebook `04_omi_comune_peer_benchmark.ipynb` provides a reproducible municipality deep-dive based on processed quotation and transaction panels.
+## 6. Population analysis
 
-### 9.1 Municipality-year quotation aggregation
+Notebook 03 processes ISTAT POSAS releases by year and geography. The main municipality population measure uses the official `Età = 999` total row rather than summing detailed age rows. It checks the uniqueness of municipality-year keys and missing or negative population values.
 
-Residential quotation observations are filtered and aggregated to municipality-year level using:
+The notebook examines national population trends, municipality-level changes, population concentration, regional and provincial context, and regional age structure. Age structure is grouped into 0–14, 15–64 and 65+.
 
-- median `Compr_mid`;
-- mean `Compr_mid`;
-- median `Compr_min`;
-- median `Compr_max`;
-- median quotation spread;
-- number of quotation observations.
+Population is not currently an input to the Notebook 04 peer definition. Future integration requires aligning the temporal dimensions and creating a validated crosswalk between ISTAT and OMI geographic identifiers.
 
-This converts the semiannual quotation data into a frequency compatible with annual transaction data.
+## 7. Municipality peer benchmark
 
-### 9.2 Target municipality
+Notebook 04 consumes the processed quotation and transaction Parquet files; it does not reload raw source releases. It normalises municipality labels, aggregates semester-level residential quotations to municipality-year statistics, and joins them to the annual transaction panel.
 
-The notebook has a configurable target municipality. The current default is:
+The current default target is `BRESCIA`. If `LATEST_YEAR` is `None`, the notebook selects the latest year available in the integrated panel.
 
-```text
-TARGET_COMUNE = "BRESCIA"
-```
+### Peer-group definitions
 
-The reference year defaults to the latest year available in the integrated municipality-year panel.
-
-### 9.3 Peer groups
-
-Three complementary peer groups are constructed:
-
-| Peer group | Definition |
+| Group | Construction |
 |---|---|
-| Provincial | All municipalities in the target's province |
-| Dimensional (region) | Same region and total transaction volume within ±50% of the target |
-| Top-N provincial | Top 30 municipalities in the target province by total transaction volume |
+| Provincial | Municipalities in the target's province |
+| Dimensional (region) | Municipalities in the target's region with total NTN within the configured tolerance of the target |
+| Top-N provincial | Highest-volume municipalities in the target's province, up to the configured N |
 
-If the dimensional peer group contains fewer than 8 municipalities, the notebook falls back to the top-30 provincial peer group.
+Current defaults are `PEER_VOL_TOL = 0.50`, `MIN_PEERS = 8`, `TOP_N_PROV = 30`, and `MIN_OBS_FOR_RISK = 3`. If the dimensional peer group has fewer than the minimum number of peers, the notebook falls back to the Top-N provincial group for that comparison.
 
-The peer definitions are descriptive and depend on the selected reference year.
+### Benchmark statistics and analysis
 
-### 9.4 Benchmark statistics
+For the target and peer samples, the notebook calculates comparisons such as peer medians, quartiles, target percentiles and peer counts. It explores residential and non-residential NTN, total volume, quotation levels and spreads, target-versus-peer time series, indexed quotation evolution, quotation versus transaction volume, residential share, and residential size-band composition.
 
-For each metric, the benchmark reports:
+For sufficiently long quotation histories, the notebook calculates CAGR, annualised volatility and maximum drawdown. Series with fewer than `MIN_OBS_FOR_RISK` observations do not meet the configured minimum for risk-style statistics.
 
-- target value;
-- peer median;
-- peer P25;
-- peer P75;
-- target percentile;
-- peer count.
+Benchmark exports are written as CSV files to `data/processed/benchmark/` and include peer-group tables, risk/return metrics, a summary and metadata. Results depend on target, reference year, peer definitions and data availability.
 
-The benchmark currently covers:
+## 8. Comparability and limitations
 
-- residential NTN;
-- non-residential NTN;
-- total transaction volume;
-- median quotation €/m²;
-- median minimum quotation €/m²;
-- median maximum quotation €/m²;
-- median quotation spread %.
+- OMI quotations are reference ranges, not realised sale prices.
+- `Compr_mid` is derived from quoted minimum and maximum values.
+- Quotation observations may differ in geographic, temporal and property-type coverage.
+- Annual transaction data and semiannual quotation data must be aligned explicitly.
+- Historical transaction files can differ in schema and coverage.
+- Geographic identifiers across OMI and ISTAT are not interchangeable by assumption.
+- The current benchmark uses transaction volume as a market-size proxy, not population.
+- Peer-group definitions and fallbacks affect percentiles and comparisons.
+- Growth, volatility, CAGR and drawdown are descriptive historical measures, not forecasts.
+- Statistical differences and correlations do not establish causal relationships.
 
-### 9.5 Time-series comparison
-
-The notebook compares the target municipality with the median of the selected dimensional peer group for:
-
-- residential NTN;
-- median quotation;
-- non-residential NTN;
-- indexed quotation evolution.
-
-The indexed quotation series is rebased to the first available year.
-
-### 9.6 Market composition
-
-Residential transaction composition is examined using the available size bands:
-
-- ≤50 m²;
-- 50–85 m²;
-- 85–115 m²;
-- 115–145 m²;
-- >145 m².
-
-Residential share is defined as:
-
-```text
-share_res = ntn_res / (ntn_res + ntn_non_res)
-```
-
-### 9.7 Risk/return-style descriptive metrics
-
-For the target and selected peer median quotation series, the notebook calculates:
-
-- CAGR;
-- annualised volatility;
-- maximum drawdown.
-
-These are descriptive time-series statistics and should not be interpreted as investment forecasts.
-
-## 10. Statistical analysis
-
-The repository includes SciPy, statsmodels and scikit-posthocs for distributional analysis, statistical testing and post-hoc comparisons where appropriate.
-
-The benchmark notebook uses percentile comparisons and distributional visualisations. Statistical association does not establish causality.
-
-Any future cross-dataset analysis involving population should explicitly distinguish cross-sectional relationships from within-municipality temporal relationships.
-
-## 11. Comparability and limitations
-
-Key limitations are explicit:
-
-- OMI quotations are reference values, not realised sale prices.
-- `Compr_mid` is a derived midpoint.
-- Municipality–Zone series have different observation histories and coverage.
-- Quotation statistics are not automatically quality-adjusted.
-- Transaction and quotation frequencies differ and therefore require explicit temporal aggregation.
-- Municipality identifiers differ across source systems.
-- Peer groups depend on the selected reference year and peer-definition parameters.
-- The dimensional peer group uses transaction volume as a market-size proxy rather than population.
-- Small peer groups trigger a documented fallback rule.
-- Benchmark percentiles are descriptive and sample-dependent.
-- Transaction activity and quotation levels can be affected by structural, demographic, supply, demand and macroeconomic factors that are not controlled for by the benchmark.
-
-The current analysis is therefore intended for **descriptive market intelligence and exploratory research**, not causal identification or investment advice.
+The project is intended for reproducible descriptive market analysis and exploratory research. Results should be interpreted with their source coverage, definitions and data-quality diagnostics.
