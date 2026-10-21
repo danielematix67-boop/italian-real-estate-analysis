@@ -1,0 +1,42 @@
+{
+    "python.analysis.exclude": [
+        "**/.venv/**",
+        "**/data/raw/**",
+        "**/data/processed/**"
+    ],
+
+    "search.exclude": {
+        "**/.venv": true,
+        "**/data/raw": true,
+        "**/data/processed": true,
+        "**/__pycache__": true,
+        "**/.git": true
+    },
+
+    "files.watcherExclude": {
+        "**/.venv/**": true,
+        "**/data/raw/**": true,
+        "**/data/processed/**": true,
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/__pycache__/**": true
+    },
+
+    "python.languageServer": "Pylance",
+
+    "python.terminal.activateEnvironment": true,
+
+    "jupyter.askForKernelRestart": false,
+
+    "editor.minimap.enabled": false,
+
+    "editor.hover.delay": 300,
+
+    "editor.suggest.shareSuggestSelections": false,
+
+    "git.autofetch": false,
+
+    "git.enableSmartCommit": false,
+
+    "telemetry.telemetryLevel": "off"
+}

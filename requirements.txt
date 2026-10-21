@@ -1,0 +1,19 @@
+# Core data analysis
+pandas
+numpy
+
+# Visualisation
+matplotlib
+seaborn
+
+# Statistical analysis
+scipy
+statsmodels
+scikit-posthocs
+
+# Data I/O
+openpyxl
+pyarrow
+
+# Notebook environment
+jupyterlab
