@@ -1,32 +1,28 @@
 # Italian Real Estate Analysis
 
-Quantitative analysis of the Italian residential real-estate market using official **OMI (Osservatorio del Mercato Immobiliare)** data, complemented by **OMI transaction volumes (NTN)** and **ISTAT POSAS population data**.
+A reproducible Python project for exploring the Italian residential real-estate market using official data from the **Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI)** and **ISTAT POSAS**. The repository combines quotation analysis, normalized transaction volumes (NTN), population analysis and a municipality-level peer benchmark.
 
-The repository implements a reproducible, notebook-driven analytical workflow: official releases are ingested and validated, transformed into analysis-ready datasets or municipality-year panels, explored at multiple geographic levels, and then used for municipality-level peer benchmarking.
+## Project objectives
 
-## Project scope
+The project turns raw official releases into validated analytical datasets and uses them to explore:
 
-The project has three source-data streams and one downstream analytical layer:
+- how residential quotation levels vary across Italy and evolve over time;
+- differences between regions, provinces and municipalities, including a focused Lombardy/Brescia analysis;
+- how residential and non-residential transaction volumes change across years and geographic areas;
+- the composition of residential transactions by property-size band;
+- demographic change and regional age structure;
+- how a target municipality compares with local and similarly sized markets.
 
-- **OMI quotations** — semiannual residential quotation data with national, regional, municipal and OMI-zone analysis.
-- **OMI transactions** — annual normalized transaction volumes (NTN), harmonised into a municipality-year panel for 2011–2025.
-- **Population** — annual municipality-level population data from ISTAT POSAS, currently covering 2019–2026.
-- **Municipality peer benchmark** — integrated quotation + transaction analysis for a configurable target municipality, currently **Brescia**.
+The analyses are descriptive and exploratory. They do not establish causal relationships or forecast future property prices.
 
-## Main analytical questions
+## Data domains
 
-The project investigates questions such as:
-
-- How have residential OMI quotations evolved over time?
-- How do quotation levels and growth differ across regions and municipalities?
-- Which Municipality–Zone combinations show the largest long-run changes?
-- How persistent and volatile is quotation growth?
-- How large are historical drawdowns from local quotation peaks?
-- How dispersed are quotation levels across Italian OMI zones?
-- How do transaction volumes evolve across municipalities?
-- How does a target municipality compare with provincial and market-size peers?
-- How do quotation levels, transaction volumes and market composition differ across peer groups?
-- How can quotation, transaction and demographic datasets be prepared for future integrated analysis?
+| Domain | Source | Current documented coverage | Main hand-off |
+|---|---|---|---|
+| OMI quotations | Agenzia delle Entrate / OMI | Semiannual releases; the dataset-creation notebook documents 44 releases in its recorded run | `data/processed/omi_quotations.parquet` |
+| OMI transactions | Agenzia delle Entrate / OMI | Annual municipality-level NTN panel, 2011–2025 | `data/processed/omi_transactions_panel.parquet` |
+| Population | ISTAT POSAS | Annual releases, 2019–2026, subject to locally available files | Analysed in Notebook 03; currently independent of the benchmark |
+| Municipality benchmark | Derived from processed OMI quotation and transaction data | Configurable target and latest available reference year | `data/processed/benchmark/` |
 
 ## Repository structure
 
@@ -34,9 +30,9 @@ The project investigates questions such as:
 italian-real-estate-analysis/
 ├── data/
 │   ├── raw/
-│   │   ├── population/
 │   │   ├── quotations/
-│   │   └── transactions/
+│   │   ├── transactions/
+│   │   └── population/<year>/
 │   └── processed/
 │       └── benchmark/
 ├── notebooks/
@@ -52,257 +48,140 @@ italian-real-estate-analysis/
 │   ├── notebooks.md
 │   └── reproducibility.md
 ├── requirements.txt
-├── LICENSE
 ├── .gitignore
 └── README.md
 ```
 
-## Analytical architecture
+Raw files are kept separate from processed analytical artefacts. Some raw and generated data may be available only in the local working copy, depending on repository tracking and source-release availability.
+
+## Analytical workflow
 
 ```text
-Official data releases
-        │
-        ├── OMI quotations
-        │       ↓
-        │   01_01 ingestion & validation
-        │       ↓
-        │   omi_quotations.parquet
-        │       ↓
-        │   01_02 quotation EDA
-        │
-        ├── OMI transactions
-        │       ↓
-        │   02 schema harmonisation
-        │       ↓
-        │   omi_transactions_panel.parquet
-        │
-        └── ISTAT POSAS
-                ↓
-            03 population analysis
+OMI quotations
+    |
+    v
+01_01 Dataset creation, validation and cleaning
+    |
+    v
+data/processed/omi_quotations.parquet
+    |                         \
+    v                          \
+01_02 Quotation exploration     \
+                                v
+OMI transactions ----------> 04 Municipality peer benchmark
+    |                           ^
+    v                           |
+02 Harmonisation                |
+    |                           |
+    v                           |
+data/processed/omi_transactions_panel.parquet
 
-Processed quotation + transaction panels
-                ↓
-        04 municipality benchmark
-                ↓
-        peer comparisons + exports
+ISTAT POSAS -> 03 Population analysis (independent stream)
 ```
 
-The architecture deliberately separates **source ingestion**, **processed analytical data**, **exploration** and **downstream benchmarking**.
+Notebook 04 requires both processed OMI Parquet files. Notebook 03 analyses population independently and is not currently an input to the benchmark.
 
-## OMI quotations
+## Notebooks
 
-### `01_01_omi_quotations_dataset_creation.ipynb`
+### 01_01 — OMI quotation dataset creation
 
-Builds the processed quotation dataset from semiannual OMI releases. The workflow:
-
-1. discovers releases using the `omi_quotations_YYYY_S1.csv` / `S2` convention;
-2. derives year, semester and reference-period metadata;
-3. inspects raw schemas and temporal coverage;
-4. performs structural and data-quality checks;
-5. applies conservative cleaning and standardisation;
-6. derives analytical fields including `Compr_mid`;
-7. checks geographic and property-category coverage;
-8. exports the analytical dataset to Parquet.
-
-The documented run covers **44 quotation releases and 7,516,495 rows** before subsequent quality and transformation steps.
-
-### `01_02_omi_quotations_exploration.ipynb`
-
-Uses the processed quotation dataset for exploratory and comparative analysis at:
-
-- national level;
-- regional level;
-- municipality level;
-- Municipality–Zone level.
-
-The analysis includes quotation levels, observation counts, historical trends, Top/Bottom Municipality–Zone comparisons, semester-over-semester and year-over-year growth, long-run change, CAGR, growth persistence, volatility, maximum growth/decline, historical drawdown and spatial dispersion.
-
-At Municipality–Zone level, the core aggregation produces `median_compr_mid`, `mean_compr_mid` and `observations`.
-
-## OMI transactions
-
-`02_omi_transactions_exploration.ipynb` analyses annual OMI normalized transaction volumes (**NTN — Numero di Transazioni Normalizzate**) for **2011–2025**.
-
-The notebook is designed to handle release-specific file layouts. It:
-
-- discovers annual releases from filenames;
-- validates the expected OMI table set;
-- harmonises year-specific schemas;
-- constructs explicit municipality-year keys;
-- validates join cardinality;
-- reports unmatched municipality-year records;
-- reconciles residential NTN size classes against the total where possible;
-- exports the municipality-year transaction panel.
-
-Expected OMI tables include:
+Reads semiannual, semicolon-separated files matching `omi_quotations_YYYY_S1.csv` and `omi_quotations_YYYY_S2.csv`. It derives reference-period metadata, inspects schema and coverage, measures missingness, validates quotation ranges and candidate keys, standardises data, derives analytical fields and exports:
 
 ```text
-LISTA-COM
-VALORI-RES
-VALORI-COM
-VALORI-PER
+data/processed/omi_quotations.parquet
 ```
 
-## Population
+### 01_02 — OMI quotation exploration
 
-`03_population_exploration.ipynb` builds a municipality-year analytical view from ISTAT POSAS releases covering **2019–2026**.
+Uses the processed quotation dataset to explore residential quotation levels and trends at national, regional, provincial and municipal levels. It includes a Lombardy and Province of Brescia deep dive, geographic comparisons, and descriptive growth/risk-style analysis. The notebook is exploratory and does not create the upstream Parquet hand-off.
 
-The main municipality population measure uses the official `Età = 999` total row. Population analysis remains a separate source stream and is not required by the current peer-group definition in Notebook 04.
+### 02 — OMI transaction analysis
 
-## Municipality peer benchmark
-
-`04_omi_comune_peer_benchmark.ipynb` is the downstream municipality deep-dive.
-
-### Current configuration
-
-- **Target municipality:** Brescia
-- **Reference year:** latest available year by default
-- **Dimensional peer tolerance:** ±50% of target total transaction volume
-- **Minimum dimensional peers:** 8
-- **Top provincial peers:** 30
-
-### Peer groups
-
-The notebook constructs three complementary peer groups:
-
-1. **Provincial** — municipalities in the same province.
-2. **Dimensional (region)** — municipalities in the same region with total transaction volume within ±50% of the target.
-3. **Top-30 provincial** — the top 30 municipalities in the province by total transaction volume.
-
-If the dimensional group has fewer than 8 peers, the notebook falls back to the top-30 provincial group.
-
-### Benchmark dimensions
-
-The target is compared on:
-
-- residential NTN;
-- non-residential NTN;
-- total transaction volume;
-- median quotation €/m²;
-- median minimum and maximum quotation €/m²;
-- quotation spread;
-- indexed quotation evolution;
-- market composition by residential NTN size band;
-- CAGR;
-- annualised volatility;
-- maximum drawdown.
-
-For each benchmark metric, the notebook reports the target value, peer median, peer P25/P75, percentile and peer count.
-
-### Output
-
-Benchmark artefacts are written to:
+Discovers annual releases in `data/raw/transactions/`, validates the expected `LISTA-COM`, `VALORI-RES`, `VALORI-COM` and `VALORI-PER` table set, harmonises historical schema differences and constructs a municipality-year panel. It analyses residential NTN by size band, non-residential NTN, national and regional trends, distributional differences, market concentration and municipality-level growth. The output is:
 
 ```text
-data/processed/benchmark/
+data/processed/omi_transactions_panel.parquet
 ```
 
-The export layer contains provincial, dimensional and top-30 benchmark tables plus risk/return, summary and metadata files.
+### 03 — ISTAT POSAS population analysis
 
-## Data sources
+Reads annual source files from `data/raw/population/<year>/`. Municipality totals use the official `Età = 999` row. The notebook examines national and local population dynamics, concentration, regional and provincial totals, and regional age structure. This stream is independent of the current benchmark.
 
-The primary sources are official Italian public-data providers:
+### 04 — OMI municipality peer benchmark
 
-- **Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI)** for residential quotations and transaction data.
-- **ISTAT — POSAS** for population data.
+Integrates processed quotation and transaction data at municipality-year level and compares a configurable target (currently `BRESCIA`) with three peer groups:
 
-See [`docs/data-sources.md`](docs/data-sources.md) for source conventions, identifiers and coverage.
+- **Provincial:** municipalities in the same province.
+- **Dimensional (region):** municipalities in the same region with total NTN within ±50% of the target.
+- **Top-30 provincial:** the 30 highest-volume municipalities in the target's province.
 
-## Methodology
+The latest available year is selected by default. If the dimensional group contains fewer than eight peers, the notebook falls back to the Top-30 provincial group for that comparison. It analyses quotation and transaction levels, peer percentiles, time-series comparisons, residential market composition and historical CAGR, volatility and drawdown where enough observations exist. CSV outputs are written to `data/processed/benchmark/`.
 
-The project follows a conservative and auditable approach:
+See [`docs/notebooks.md`](docs/notebooks.md) for the detailed notebook map and [`docs/methodology.md`](docs/methodology.md) for metric definitions and benchmark construction.
 
-- raw data are inspected before transformation;
-- filename conventions are validated;
-- geographic and temporal keys are checked before panel construction;
-- joins are validated explicitly;
-- quotation values are not silently imputed;
-- derived indicators remain distinct from source fields;
-- benchmark parameters are explicit and reproducible;
-- benchmark results are treated as descriptive comparisons rather than causal estimates.
+## Setup and execution
 
-See [`docs/methodology.md`](docs/methodology.md) for metric definitions and peer-group construction.
-
-## Reproducibility
-
-Create and activate a virtual environment:
+Create a virtual environment and install the dependencies:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+jupyter lab
 ```
 
-On Windows PowerShell:
+On Windows PowerShell, activate with:
 
 ```powershell
 .venv\Scripts\Activate.ps1
 ```
 
-Install dependencies:
+Run notebooks from the repository and execute cells from top to bottom.
 
-```bash
-pip install -r requirements.txt
-```
+Recommended sequence:
 
-Launch JupyterLab:
+1. Run Notebook 01_01 to create the processed quotation dataset.
+2. Run Notebook 01_02 to explore quotation data.
+3. Run Notebook 02 to create the transaction panel.
+4. Run Notebook 03 independently for population analysis.
+5. Run Notebook 04 after both processed quotation and transaction files exist.
 
-```bash
-jupyter lab
-```
+Detailed instructions and source-file conventions are documented in [`docs/reproducibility.md`](docs/reproducibility.md) and [`docs/data-sources.md`](docs/data-sources.md).
 
-### Full analytical workflow
+## Technology stack
 
-```text
-01_01 → 01_02
-           │
-02 ────────┼──→ 04
-           │
-03 ────────┘
-```
-
-Notebook `04` requires the processed quotation and transaction artefacts. Notebook `03` is an independent demographic stream in the current implementation.
-
-See [`docs/notebooks.md`](docs/notebooks.md) and [`docs/reproducibility.md`](docs/reproducibility.md) for the detailed execution guide.
-
-## Dependencies
-
-The environment is defined in `requirements.txt` and includes:
-
-- pandas
-- NumPy
-- SciPy
-- statsmodels
-- scikit-posthocs
-- Matplotlib
-- Seaborn
+- Python
+- pandas and NumPy
+- SciPy, statsmodels and scikit-posthocs
+- Matplotlib and Seaborn
 - JupyterLab
-- OpenPyXL
-- PyArrow
+- PyArrow for Parquet I/O
+- Git and GitHub
 
-## Data management
+Dependencies are listed in `requirements.txt`. They are not all version-pinned, so exact environment replication may require recording the package versions used.
 
-Raw source releases are organised under `data/raw/` by analytical domain. Processed analytical artefacts are written under `data/processed/`.
+## Data quality and interpretation
 
-Local environments, notebook checkpoints, temporary files and local configuration are excluded through `.gitignore`.
+The workflow checks file conventions, schema differences, missingness, duplicates, geographic and temporal coverage, join cardinality, municipality-year uniqueness, non-negative transaction values and transaction reconciliation where applicable.
 
-## Limitations
+Important limitations:
 
-OMI quotations are official market reference values and should not be interpreted as transaction-level realised sale prices. `Compr_mid` is a derived midpoint of the quoted range.
-
-Municipality–Zone series can have different temporal coverage and observation counts. Comparisons should therefore consider the available history and data coverage.
-
-Transaction volumes and population have different frequencies, definitions and coverage periods. Cross-dataset relationships require explicit alignment of geographic keys, frequency and observation windows.
-
-The municipality benchmark is sample-dependent: peer definitions, reference year and transaction-volume thresholds affect the comparison. Percentiles describe the target's position within the selected peer sample and are not forecasts or causal estimates.
+- OMI quotations are reference ranges, not realised sale prices.
+- `Compr_mid` is a derived midpoint, not a transaction price.
+- Quotation and transaction data have different frequencies and coverage.
+- Municipality identifiers differ across OMI and ISTAT; integration requires validated geographic keys.
+- Benchmark results depend on the target, reference year, peer-group definitions and data availability.
+- Percentiles, growth rates, volatility and drawdown are descriptive measures, not forecasts or causal estimates.
 
 ## Documentation
 
-- [`docs/README.md`](docs/README.md) — documentation index and project architecture
-- [`docs/data-sources.md`](docs/data-sources.md) — official sources, identifiers and coverage
-- [`docs/methodology.md`](docs/methodology.md) — data preparation, aggregation, benchmark construction and analytical metrics
-- [`docs/notebooks.md`](docs/notebooks.md) — notebook scope, inputs, outputs and execution order
-- [`docs/reproducibility.md`](docs/reproducibility.md) — environment and reproducibility controls
+- [Project documentation index](docs/README.md)
+- [Data sources and identifiers](docs/data-sources.md)
+- [Methodology and metrics](docs/methodology.md)
+- [Notebook guide and execution order](docs/notebooks.md)
+- [Reproducibility and data updates](docs/reproducibility.md)
 
 ## License
 
-See `LICENSE` for the repository license terms.
+See [`LICENSE`](LICENSE) for the applicable license terms.
