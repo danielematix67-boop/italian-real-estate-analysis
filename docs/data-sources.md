@@ -1,161 +1,89 @@
 # Data Sources
 
-## 1. OMI quotations
+This project uses official source releases from Agenzia delle Entrate's Osservatorio del Mercato Immobiliare (OMI) and ISTAT. Raw files are stored by domain and are kept separate from processed analytical artefacts.
 
-**Provider:** Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI).
+## 1. OMI residential quotations
 
-Semiannual quotation releases are stored under:
+**Provider:** Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI)  
+**Raw directory:** `data/raw/quotations/`  
+**Processed output:** `data/processed/omi_quotations.parquet`
 
-```text
-data/raw/quotations/
-```
-
-The ingestion workflow expects:
+The dataset-creation notebook discovers files matching:
 
 ```text
 omi_quotations_YYYY_S1.csv
 omi_quotations_YYYY_S2.csv
 ```
 
-The releases are semicolon-separated CSV files. Year, semester and reference-period metadata are derived explicitly from the filename and validated before the files enter the analytical dataset.
+Files are semicolon-separated. The year, semester and reference period are derived from filenames and validated before processing. The ingestion notebook checks schema, duplicate rows, missing values, numeric conversion, range consistency, candidate-key duplicates, temporal coverage and geographic/property-category coverage.
 
-The documented dataset-creation run covers **44 quotation releases and 7,516,495 rows** before subsequent quality and transformation steps.
+Core fields include geographic descriptors (such as `Regione`, `Prov`, `Comune_ISTAT`, `Comune_descrizione`, `Fascia` and `Zona`), property type and condition, and quotation bounds `Compr_min` and `Compr_max`. `Compr_mid` is derived for analysis from the quotation bounds; it is not a realised transaction price.
 
-### Main quotation fields
+The exploration notebook analyses residential quotation levels and trends at national, regional, provincial and municipal levels, with a focused Lombardy/Brescia section. Geographic coverage and observation counts can differ by period and aggregation level.
 
-Geographic identifiers and descriptors include:
+## 2. OMI transactions (NTN)
 
-- `Regione`
-- `Prov`
-- `Comune_ISTAT`
-- `Comune_cat`
-- `Comune_amm`
-- `Comune_descrizione`
-- `Fascia`
-- `Zona`
-- `LinkZona`
+**Provider:** Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI)  
+**Raw directory:** `data/raw/transactions/`  
+**Processed output:** `data/processed/omi_transactions_panel.parquet`
 
-Property classification and quotation fields include:
+The transaction notebook discovers annual files using a `YYYY_<TABLE>.csv` pattern and validates the expected table set:
 
-- `Cod_Tip`
-- `Descr_Tipologia`
-- `Stato`
-- `Stato_prev`
-- `Compr_min`
-- `Compr_max`
-- rental quotation fields (`Loc_*`)
+- `LISTA-COM`
+- `VALORI-RES`
+- `VALORI-COM`
+- `VALORI-PER`
 
-The analytical workflow derives `Compr_mid` from the quotation range where appropriate. The Municipality–Zone exploration also derives quotation growth, spreads, volatility and drawdown measures.
+The current documented analytical coverage is 2011–2025. Historical releases can vary in column casing, names and year-specific NTN fields, so the notebook harmonises schemas before constructing the panel.
 
-## 2. OMI transactions
+The primary indicator is **NTN (Numero di Transazioni Normalizzate)**. Residential size-band measures are retained where available; non-residential segments are aggregated from the relevant source tables. The notebook performs checks on municipality-year uniqueness, non-negative values, missing keys and residential size-band reconciliation.
 
-**Provider:** Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI).
+## 3. ISTAT POSAS population
 
-Annual transaction releases are stored under:
+**Provider:** ISTAT — Istituto Nazionale di Statistica, POSAS (resident population by sex, age and municipality)  
+**Raw directory:** `data/raw/population/<year>/`
 
-```text
-data/raw/transactions/
-```
+The notebook discovers annual folders and reads the relevant POSAS files for municipalities, provinces and regions. The documented coverage is 2019–2026, subject to the files present in the local data directory.
 
-The current transaction analysis covers **2011–2025**.
+For the main municipality total, the notebook selects records with `Età = 999`, the official total row, rather than summing detailed age records. It checks municipality-year key uniqueness and missing or negative population values. Regional age structure is also analysed using age bands 0–14, 15–64 and 65+.
 
-The workflow validates the expected OMI table set:
+Population remains a separate analytical stream in the current benchmark: Notebook 04 does not consume the population panel.
 
-```text
-LISTA-COM
-VALORI-RES
-VALORI-COM
-VALORI-PER
-```
+## 4. Processed benchmark inputs and outputs
 
-Historical releases can differ in layout and schema. The notebook therefore discovers annual files from filenames, harmonises year-specific structures and constructs the municipality dimension explicitly.
-
-The principal transaction indicator is **NTN (Numero di Transazioni Normalizzate)**.
-
-The municipality key is based on **year + `codcom`**. Join cardinality and unmatched municipality-year records are checked before the panel is accepted.
-
-Where the source structure permits, residential NTN size bands are reconciled against the reported residential total.
-
-## 3. Population
-
-**Provider:** ISTAT — POSAS population releases.
-
-Raw population data are stored under:
-
-```text
-data/raw/population/
-```
-
-The current repository contains annual releases covering **2019–2026**.
-
-The principal municipality population measure uses the official `Età = 999` total row. Detailed age records remain available for demographic analysis.
-
-The population stream uses municipality-level identifiers that are distinct from OMI's alphanumeric `codcom` identifiers. Any cross-dataset integration must therefore validate or construct an explicit crosswalk.
-
-## 4. Benchmark inputs
-
-Notebook `04_omi_comune_peer_benchmark.ipynb` does not ingest raw source releases directly.
-
-Its principal inputs are processed artefacts produced upstream:
+Notebook `04_omi_comune_peer_benchmark.ipynb` consumes these upstream processed files:
 
 - `data/processed/omi_quotations.parquet`
 - `data/processed/omi_transactions_panel.parquet`
 
-It aggregates residential quotations from semester-level observations to municipality-year statistics and joins them with the annual transaction panel.
-
-The benchmark currently uses total transaction volume:
+It aggregates quotation observations to municipality-year level and joins them to annual transaction data using normalised municipality dimensions. The total transaction volume used in peer construction is derived as:
 
 ```text
 vol_tot = ntn_res + ntn_non_res
 ```
 
-as its market-size proxy for peer construction.
+The notebook writes benchmark CSV artefacts to `data/processed/benchmark/`, including peer-group tables, risk/return metrics, a summary and metadata for the configured target municipality.
 
-## 5. Identifier conventions
+## 5. Geographic identifiers and joins
 
-The repository contains several identifier systems that must not be conflated:
+The sources use different geographic keys and labels. Examples include OMI quotation fields such as `Comune_ISTAT` and `Comune_descrizione`, the transaction panel's `codcom`, and normalised municipality/province/region keys created for the benchmark.
 
-| Identifier | Source / use |
-|---|---|
-| `Comune_ISTAT` | OMI/administrative geographic identifier |
-| `codcom` | OMI municipality code used in transaction panels |
-| `Comune_n` / `Regione_n` / `Prov_n` | Normalised analytical keys used in the benchmark |
-| `reference_year` / `reference_date` | Quotation temporal dimensions |
-| `year` | Annual panel dimension |
+These identifiers must not be assumed interchangeable. The benchmark applies name normalisation and joins its own prepared dimensions; any future integration with population data should use an explicit and validated municipality-code crosswalk rather than relying only on display names.
 
-Joins are therefore validated explicitly rather than assuming that similarly named municipality fields are interchangeable.
+## 6. Data-handling principles
 
-## 6. Source-data handling
+1. Keep original source releases separate from derived datasets.
+2. Validate file names, expected tables and source structure before assigning metadata.
+3. Preserve source fields where practical and label derived measures clearly.
+4. Surface missing values, unexpected records, duplicates and unmatched keys.
+5. Check join cardinality and panel uniqueness before using aggregates.
+6. Record source coverage and reference periods because the domains differ in frequency and time span.
+7. Do not interpret quotation midpoints as observed sale prices.
+8. Treat benchmark percentiles as descriptive statistics tied to a defined peer sample.
 
-The project follows these rules:
-
-1. Raw releases remain separate from processed analytical data.
-2. Filename conventions are validated before metadata are assigned.
-3. Source fields are not overwritten unnecessarily by derived metrics.
-4. Missing, ambiguous or structurally unexpected records are surfaced during validation.
-5. Geographic and temporal keys are checked before panel construction.
-6. Dataset-specific coverage is documented because the three source domains have different frequencies and time spans.
-7. Benchmark notebooks consume processed artefacts and do not silently rebuild upstream data.
-
-## 7. Processed data
-
-Processed analytical artefacts are written under:
-
-```text
-data/processed/
-```
-
-The main quotation hand-off is stored in Parquet. The transaction analytical panel is also stored in Parquet.
-
-Benchmark-specific CSV outputs are stored under:
-
-```text
-data/processed/benchmark/
-```
-
-## 8. Official sources
+## 7. Official providers
 
 - Agenzia delle Entrate — Osservatorio del Mercato Immobiliare (OMI)
-- ISTAT — Istituto Nazionale di Statistica
+- ISTAT — Istituto Nazionale di Statistica (POSAS)
 
-The repository uses official provider releases as its source layer. Transformations performed after ingestion are documented in the notebooks and methodology guide.
+Consult the provider releases and the notebook-level validation output when updating source files; the documented coverage should be revisited as new releases are added.
